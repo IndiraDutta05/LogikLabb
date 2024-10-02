@@ -24,18 +24,22 @@ memberchk(X,L) :- select(X,L,_), !.
 
 
 
-% Basfall: tom lista blir tom lista.
-remove_duplicates([], []).
+% Entry point for removing duplicates
+remove_duplicates(List, Result) :-
+    remove_duplicates(List, [], Accumulator),
+    reverse(Accumulator, Result).  % Reverse to maintain original order
 
-% Om huvudet (H) finns i svansen (T), ignorera det och fortsätt.
-remove_duplicates([H|T], E) :- 
-    member(H, T),        
-    remove_duplicates(T, E).
+% Base case: When the input list is empty, the result is the accumulator.
+remove_duplicates([], Accumulator, Accumulator).
 
-% Om huvudet (H) inte finns i svansen (T), lägg till det i resultatet.
-remove_duplicates([H|T], [H|E]) :- 
-    \+ member(H, T),      
-    remove_duplicates(T, E).
+% If the head is not in the accumulator, add it.
+remove_duplicates([H|T], Accumulator, Result) :-
+    \+ member(H, Accumulator),
+    remove_duplicates(T, [H|Accumulator], Result).
 
+% If the head is already in the accumulator, skip it.
+remove_duplicates([H|T], Accumulator, Result) :-
+    member(H, Accumulator),
+    remove_duplicates(T, Accumulator, Result).
 
 
