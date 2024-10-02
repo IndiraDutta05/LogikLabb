@@ -29,12 +29,12 @@ remove_duplicates([], []).
 
 % Om huvudet (H) finns i svansen (T), ignorera det och fortsätt.
 remove_duplicates([H|T], E) :- 
-    member(H, T), 
-    !,       
+    member(H, T),        
     remove_duplicates(T, E).
 
 % Om huvudet (H) inte finns i svansen (T), lägg till det i resultatet.
-remove_duplicates([H|T], [H|E]) :-  
+remove_duplicates([H|T], [H|E]) :- 
+    \+ member(H, T),      
     remove_duplicates(T, E).
 
 
