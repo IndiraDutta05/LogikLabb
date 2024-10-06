@@ -43,3 +43,43 @@ remove_duplicates([H|T], Accumulator, Result) :-
     remove_duplicates(T, Accumulator, Result).
 
 
+% Uppgift 4:
+
+% Representation av en graf.
+node(a).
+node(b).
+node(c).
+node(d).
+node(e).
+node(f).
+
+edge(a, b).
+edge(a, d).
+edge(a, f).
+edge(b, a).
+edge(b, c).
+edge(b, e).
+edge(c, b).
+edge(c, d).
+edge(d, a).
+edge(d, c).
+edge(d, e).
+edge(e, b).
+edge(e, d).
+edge(e, f).
+edge(f, a).
+edge(f, e).
+
+% Hitta alla moljiga paths.
+
+path(A, B, List) :- walk(A, B, [], List).
+
+walk(A, B, V, [A,B]) :- 
+    edge(A, B),
+    \+member(A,V).
+
+walk(A, B, V, [A|List]) :- 
+    \+ A=B,
+    \+member(A, V), 
+    edge(A, X),
+    walk(X, B, [A|V], List).
