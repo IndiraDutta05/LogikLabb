@@ -22,12 +22,26 @@ select(X,[Y|T],[Y|R]) :- select(X,T,R).
 member(X,L) :- select(X,L,_).
 memberchk(X,L) :- select(X,L,_), !.
 
+% Uppgift 1
+/*1. Vilka bindningar presenteras som resultat?
+Output: 
+T = f(a, a, b),
+Y = X, X = a,
+Z = b.
+Here we unify two terms: T = f(a, Y, Z) and T = f(X, X, b) 
+The first argument in both terms is a and X, so X = a, 
+The second argument in both terms is Y and X.
+Since we know from the previous step that X = a, 
+this forces Y = a, The third argument in both terms is Z and b. 
+Thus, Z = b.
+*/
 
+% Uppgift 2
 
 % Entry point for removing duplicates
 remove_duplicates(List, Result) :-
     remove_duplicates(List, [], Accumulator),
-    reverse(Accumulator, Result).  % Reverse to maintain original order
+    reverse(Accumulator, Result).  % element is added to the front of the accumulator. This means that the first element found is thelast to be added, leading to a reversed order.
 
 % Base case: When the input list is empty, the result is the accumulator.
 remove_duplicates([], Accumulator, Accumulator).
@@ -35,16 +49,36 @@ remove_duplicates([], Accumulator, Accumulator).
 % If the head is not in the accumulator, add it.
 remove_duplicates([H|T], Accumulator, Result) :-
     \+ member(H, Accumulator),
-    remove_duplicates(T, [H|Accumulator], Result).
+    remove_duplicates(T, [H|Accumulator], Result).  % If H is not in the accumulator, it is added to the front of the accumulator , and the predicate recursively processes the tail.
 
 % If the head is already in the accumulator, skip it.
 remove_duplicates([H|T], Accumulator, Result) :-
     member(H, Accumulator),
     remove_duplicates(T, Accumulator, Result).
 
+/*
+2. Definiera alltså predikatet remove_duplicates/2! 
+Förklara varför man kan kalla detta predikat för en funktion!
+
+In Prolog, a predicate like remove_duplicates/2 
+can be seen as a function because:
+It takes an input list (List) and produces an output (Result), 
+transforming the data in a predictable and consistent way.
+In functional terms, it maps an input to an output without side effects 
+(i.e., it doesn't change anything outside of the relation between List and Result).
+
+*/
+
+
+% Uppgift 3 
+
+partstring(X, L, F) :-
+    append([_, F, _], X),
+    length(F, L),
+    F \= [].
+
 
 % Uppgift 4:
-
 % Representation av en graf.
 node(a).
 node(b).
