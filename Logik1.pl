@@ -106,12 +106,15 @@ edge(f, e).
 
 % Hitta alla moljiga paths.
 
+%Den tomma listan är en lista av vilken nodes som walk har gott till.
 path(A, B, List) :- walk(A, B, [], List).
 
+%Base_case, checkar om A exact brevidd B, och om walk har inte redan gott till node A.
 walk(A, B, V, [A,B]) :- 
     edge(A, B),
     \+member(A,V).
 
+%Checkar om A = B, om walk har redan gått till node A, och rekurivt går igenom varje node.
 walk(A, B, V, [A|List]) :- 
     \+ A=B,
     \+member(A, V), 
