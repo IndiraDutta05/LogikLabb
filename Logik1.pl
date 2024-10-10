@@ -72,10 +72,19 @@ In functional terms, it maps an input to an output without side effects
 
 % Uppgift 3 
 
+
 partstring(X, L, F) :-
-    append([_, F, _], X),
-    length(F, L),
-    F \= [].
+    /*The append/3 predicate splits the list X into three parts:
+ The first part and third part is ignored (represented by an anonymous variable),
+ the second part (F) is the sublist we are interested in. 
+ This finds a sublist F within list X, ignoring the elements before and after it.
+*/   
+append([_, F, _], X),
+
+% Ensures that the sublist F has exactly L elements.
+length(F, L),
+% Ensures that F is not an empty list.
+F \= [].
 
 
 % Uppgift 4:
