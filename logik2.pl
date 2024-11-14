@@ -1,111 +1,114 @@
-verify(InputFileName) :- see(InputFileName),
-        read(Prems), read(Goal), read(Proof),
-        seen,
-        valid_proof(Prems, Goal, Proof).
+% Main entry point for verifying the proof from a file
+verify(InputFileName) :- 
+    see(InputFileName),                  % Open the file for reading
+    read(Premises),                       % Read premises list
+    read(Goal),                           % Read goal (conclusion)
+    read(Proof),                          % Read the proof steps
+    seen,                                 % Close the file
+    valid_proof(Premises, Goal, Proof).   % Validate the proof with these steps
 
-% Check if last element in Proof is Goal and iterates through the proof and checks for validity.
+% Checks if the last element in Proof matches Goal and validates proof line-by-line
+valid_proof(Premises, Goal, Proof) :- 
+    last(Proof, [_, Goal, _]),            % Ensure last line equals the goal
+    check_proof_steps(Premises, Proof, []), % Validate proof steps starting with empty validated list
+    !.
 
+% Base case: no more steps to check
+check_proof_steps(_, [], _).
 
-valid_proof(Prems, Goal, Proof) :-
-        last(Proof, [_, Goal, _]),
-        check_proof(Prems, Proof, []),
-        !.
+% Recursively validate each step in the proof
+check_proof_steps(Premises, [CurrentStep|RemainingSteps], ValidatedSteps) :-
+    validate_line(Premises, CurrentStep, ValidatedSteps),           % Validate current step
+    append(ValidatedSteps, [CurrentStep], UpdatedValidated),        % Add to validated steps
+    check_proof_steps(Premises, RemainingSteps, UpdatedValidated).  % Continue with remaining steps
 
-% If the list of rows to validate is the empty list, we are done.
-check_proof(_, [], _). 
+% Box validation: Checks if a box is valid from start to end line
+check_box(StartLine, EndLine, Validated) :- 
+    member([StartLine | InnerLines], Validated),
+    last(InnerLines, EndLine).
 
-% Check if the given proof is valid
-check_proof(Prems, [ToProcess|ToBeProcessed], Processed) :-
-        validate_line(Prems, ToProcess, Processed),
-        append(Processed, [ToProcess], Concat),
-        check_proof(Prems, ToBeProcessed, Concat).
-
-% Checks box
-check_box(FirstLine, LastLine, Processed) :-
-        member([FirstLine|T], Processed),
-        last(T, LastLine).
-
-check_box(Line, Line, Processed) :-
-        member([Line], Processed).
+check_box(Line, Line, Validated) :- 
+    member([Line], Validated).
 
 % Handles premise
-validate_line(Prems, [_, Sats, premise], _) :-
-        member(Sats, Prems).
+validate_line(Premises, [_, Formula, premise], _) :- 
+    member(Formula, Premises).
 
-% Handles assumption. Case when assumption gives box.
-validate_line(Prems, [[_, _, assumption]|BoxTail], Processed) :-
-        append(Processed, [[_, _, assumption]], Concat),
-        check_proof(Prems, BoxTail, Concat).
+% Handles assumption and starts a box with assumption
+validate_line(Premises, [[_, _, assumption] | BoxTail], Validated) :- 
+    append(Validated, [[_, _, assumption]], ExtendedValidated),
+    check_proof_steps(Premises, BoxTail, ExtendedValidated).
 
-% Handles copy.
-validate_line(_, [_, A, copy(X)], Processed) :-
-        member([X, A, _], Processed).
+% Handles copy
+validate_line(_, [_, Formula, copy(LineRef)], Validated) :- 
+    member([LineRef, Formula, _], Validated).
 
-% Handles andint.
-validate_line(_, [_, and(A, B), andint(X,Y)], Processed) :-
-        member([X, A, _], Processed),
-        member([Y, B, _], Processed).
+% Handles and introduction ∧i
+validate_line(_, [_, and(Left, Right), andint(LineX, LineY)], Validated) :- 
+    member([LineX, Left, _], Validated),
+    member([LineY, Right, _], Validated).
 
-% Handles andel1(X).
-validate_line(_, [_, A, andel1(X)], Processed) :-
-        member([X, and(A, _), _], Processed).
+% Handles and elimination ∧e1 (left)
+validate_line(_, [_, Left, andel1(LineRef)], Validated) :- 
+    member([LineRef, and(Left, _), _], Validated).
 
-% Handles andel2(X).
-validate_line(_, [_, B, andel2(X)], Processed) :-
-        member([X, and(_, B), _], Processed).
+% Handles and elimination ∧e2 (right)
+validate_line(_, [_, Right, andel2(LineRef)], Validated) :- 
+    member([LineRef, and(_, Right), _], Validated).
 
-% Handles orint1(X).
-validate_line(_, [_, or(A, _), orint1(X)], Processed) :-
-        member([X, A, _], Processed).
+% Handles or introduction ∨i1 (left)
+validate_line(_, [_, or(Left, _), orint1(LineRef)], Validated) :- 
+    member([LineRef, Left, _], Validated).
 
-% Handles orint2(X).
-validate_line(_, [_, or(_, B), orint2(X)], Processed) :-
-        member([X, B, _], Processed).
+% Handles or introduction ∨i2 (right)
+validate_line(_, [_, or(_, Right), orint2(LineRef)], Validated) :- 
+    member([LineRef, Right, _], Validated).
 
-% Handles orel(X, Y, U, V, W).
-validate_line(_, [_, A, orel(X, Y, U, V, W)], Processed) :-
-        member([X, or(B, D), _], Processed),
-        check_box([Y, B, assumption], [U, A, _], Processed),
-        check_box([V, D, assumption], [W, A, _], Processed).
+% Handles disjunction elimination ∨e
+validate_line(_, [_, Formula, orel(X, Y, U, V, W)], Validated) :-
+    member([X, or(Left, Right), _], Validated),
+    check_box([Y, Left, assumption], [U, Formula, _], Validated),
+    check_box([V, Right, assumption], [W, Formula, _], Validated).
 
-% Handles impel(X, Y).
-validate_line(_, [_, B, impel(X, Y)], Processed) :-
-        member([X, A, _], Processed),
-        member([Y, imp(A, B), _], Processed).
+% Handles implication elimination (→e)
+validate_line(_, [_, Conclusion, impel(LineX, LineY)], Validated) :- 
+    member([LineX, Premise, _], Validated),
+    member([LineY, imp(Premise, Conclusion), _], Validated).
 
-% Handles negint(X, Y).
-validate_line(_, [_, neg(Z), negint(X, Y)], Processed) :-
-        check_box([X, Z, assumption], [Y, cont, _], Processed).
+% Handles negation introduction ¬i
+validate_line(_, [_, neg(Formula), negint(Start, End)], Validated) :- 
+    check_box([Start, Formula, assumption], [End, cont, _], Validated).
 
-% Handles negel(X, Y).
-validate_line(_, [_, cont, negel(X, Y)], Processed) :-
-        member([X, A, _], Processed),
-        member([Y, neg(A), _], Processed).
+% Handles negation elimination ¬e
+validate_line(_, [_, cont, negel(LineX, LineY)], Validated) :- 
+    member([LineX, Formula, _], Validated),
+    member([LineY, neg(Formula), _], Validated).
 
-% Handles contel(X).
-validate_line(_, [_, _, contel(X)], Processed) :-
-        member([X, cont, _], Processed).
+% Handles contradiction elimination ⊥e
+validate_line(_, [_, _, contel(LineRef)], Validated) :- 
+    member([LineRef, cont, _], Validated).
 
-% Handles negnegint(X).
-validate_line(_, [_, neg(neg(Sats)), negnegint(X)], Processed) :-
-        member([X, Sats, _], Processed).
+% Handles double negation introduction ¬¬i
+validate_line(_, [_, neg(neg(Formula)), negnegint(LineRef)], Validated) :- 
+    member([LineRef, Formula, _], Validated).
 
-% Handles negnegel(X).
-validate_line(_, [_, Sats, negnegel(X)], Processed) :-
-        member([X, neg(neg(Sats)), _], Processed).
+% Handles double negation elimination ¬¬e
+validate_line(_, [_, Formula, negnegel(LineRef)], Validated) :- 
+    member([LineRef, neg(neg(Formula)), _], Validated).
 
-% Handles mt
-validate_line(_, [_, _, mt(X, Y)], Processed) :-
-        member([X, imp(_, B), _], Processed),
-        member([Y, neg(B), _], Processed).
+% Handles modus tollens (mt)
+validate_line(_, [_, neg(Antecedent), mt(LineX, LineY)], Validated) :- 
+    member([LineX, imp(Antecedent, Consequent), _], Validated),
+    member([LineY, neg(Consequent), _], Validated).
 
-% Handles pbc(X, Y).
-validate_line(_, [_, A, pbc(X, Y)], Processed) :-
-        check_box([X, neg(A), assumption], [Y, cont, _], Processed).
+% Handles proof by contradiction pbc
+validate_line(_, [_, Conclusion, pbc(Start, End)], Validated) :- 
+    check_box([Start, neg(Conclusion), assumption], [End, cont, _], Validated).
 
-% Handles impint. 
-validate_line(_, [_, imp(R,Q), impint(X,Y)], Processed) :-
-        check_box([X, R, assumption], [Y, Q, _], Processed).
+% Handles implication introduction (→i)
+validate_line(_, [_, imp(Antecedent, Consequent), impint(Start, End)], Validated) :- 
+    check_box([Start, Antecedent, assumption], [End, Consequent, _], Validated).
 
-% Handles lem.
-validate_line(_, [_, or(A, neg(A)), lem], _).
+% Handles law of excluded middle (lem)
+validate_line(_, [_, or(Formula, neg(Formula)), lem], _).
+
