@@ -3,10 +3,6 @@ verify(InputFileName) :-
     see(InputFileName),
     read(Premises), read(Goal), read(Proof),
     seen,
-    validate_proof(Premises, Goal, Proof).
-
-% Proof Validation
-validate_proof(Premises, Goal, Proof) :-
     validate_proof(Premises, Goal, Proof, []).
 
 % If no unvalidated lines remain and the last validated line matches the goal.
@@ -14,7 +10,7 @@ validate_proof(_Premises, Goal, [], [[_LineNumber, Goal, _Rule] | _Validated]).
 
 % The first line is a box starting with an assumption.
 validate_proof(Premises, Goal, [[[LineNumber, Result, assumption] | BoxTail] | ProofTail], Validated) :-
-    validate_box(Premises, Goal, BoxTail, [[LineNumber, Result, assumption] | Validated]),
+    check_box(Premises, Goal, BoxTail, [[LineNumber, Result, assumption] | Validated]),
     validate_proof(Premises, Goal, ProofTail, [[[LineNumber, Result, assumption] | BoxTail] | Validated]).
 
 % The first line is derived from applying a rule to previously validated lines.
@@ -129,17 +125,17 @@ validate_rule(_Premises, [_LineNumber, Result, orel(X, Y, U, V, W)], Validated) 
 
 % Handling Boxes
 % A box is valid if all its lines are validated.
-validate_box(_Premises, _Goal, [], _Validated).
+check_box(_Premises, _Goal, [], _Validated).
 
 % The first line of the box is another box.
-validate_box(Premises, Goal, [[[LineNumber, Result, assumption] | BoxTail] | ProofTail], Validated) :-
-    validate_box(Premises, Goal, BoxTail, [[LineNumber, Result, assumption] | Validated]),
-    validate_box(Premises, Goal, ProofTail, [[[LineNumber, Result, assumption] | BoxTail] | Validated]).
+check_box(Premises, Goal, [[[LineNumber, Result, assumption] | BoxTail] | ProofTail], Validated) :-
+    check_box(Premises, Goal, BoxTail, [[LineNumber, Result, assumption] | Validated]),
+    check_box(Premises, Goal, ProofTail, [[[LineNumber, Result, assumption] | BoxTail] | Validated]).
 
 % The first line is a result derived from a rule.
-validate_box(Premises, Goal, [ProofHead | ProofTail], Validated) :-
+check_box(Premises, Goal, [ProofHead | ProofTail], Validated) :-
     validate_rule(Premises, ProofHead, Validated),
-    validate_box(Premises, Goal, ProofTail, [ProofHead | Validated]).
+    check_box(Premises, Goal, ProofTail, [ProofHead | Validated]).
 
 % Find a box containing a specific line.
 find_box(TargetLine, [BoxHead | _], BoxHead) :-
