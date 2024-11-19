@@ -1,102 +1,150 @@
-% Main entry point for verifying the proof from a file
-verify(InputFileName) :- 
-    see(InputFileName),                 % Open the file for reading
-    read(Premises),                     % Read premises list
-    read(Goal),                         % Read goal (conclusion)
-    read(Proof),                        % Read the proof steps
-    seen,                               % Close the file
-    check_goal(Goal, Proof),            % Verify that the last step matches the goal
-    validate_proof(Premises, Goal, Proof, []).  % Validate proof with premises and proof steps
+% Main Predicate
+verify(InputFileName) :-
+    see(InputFileName),
+    read(Premises), read(Goal), read(Proof),
+    seen,
+    validate_proof(Premises, Goal, Proof).
 
-% Checks if the last line in the proof matches the goal
-check_goal(Goal, [[_, X, _] | []]) :- 
-    Goal = X.
-check_goal(Goal, [_ | Tail]) :- 
-    check_goal(Goal, Tail).
+% Proof Validation
+validate_proof(Premises, Goal, Proof) :-
+    validate_proof(Premises, Goal, Proof, []).
 
-% Base case: no more steps to validate
-validate_proof(_, _, [], _).
+% If no unvalidated lines remain and the last validated line matches the goal.
+validate_proof(_Premises, Goal, [], [[_LineNumber, Goal, _Rule] | _Validated]).
 
-% Validate each step in the proof recursively
-validate_proof(Premises, Goal, [CurrentStep | RemainingSteps], ValidatedSteps) :-
-    validate_step(Premises, Goal, CurrentStep, ValidatedSteps), % Validate current step
-    validate_proof(Premises, Goal, RemainingSteps, [CurrentStep | ValidatedSteps]). % Continue with the remaining steps
+% The first line is a box starting with an assumption.
+validate_proof(Premises, Goal, [[[LineNumber, Result, assumption] | BoxTail] | ProofTail], Validated) :-
+    validate_box(Premises, Goal, BoxTail, [[LineNumber, Result, assumption] | Validated]),
+    validate_proof(Premises, Goal, ProofTail, [[[LineNumber, Result, assumption] | BoxTail] | Validated]).
 
-% Validate a single proof step according to its rule
+% The first line is derived from applying a rule to previously validated lines.
+validate_proof(Premises, Goal, [ProofHead | ProofTail], Validated) :-
+    validate_rule(Premises, ProofHead, Validated),
+    validate_proof(Premises, Goal, ProofTail, [ProofHead | Validated]).
 
-% Validate a premise
-validate_step(Premises, _, [_, Formula, premise], _) :- 
-    member(Formula, Premises).
+% Rules for Validation
+% premise
+validate_rule(Premises, [_LineNumber, Result, premise], _Validated) :-
+    member(Result, Premises).
 
-% Validate "and introduction" (∧ introduction)
-validate_step(_, _, [_, and(Left, Right), andint(Line1, Line2)], Validated) :-
-    member([Line1, Left, _], Validated),
-    member([Line2, Right, _], Validated).
+% Treating imp as a premise  NEWWWW
+validate_rule(Premises, [_LineNumber, imp(Antecedent, Result), premise], _Validated) :-
+    member(imp(Antecedent, Result), Premises).
 
-% Validate "and elimination" (∧ elimination, left and right)
-validate_step(_, _, [_, Left, andel1(LineRef)], Validated) :-
-    member([LineRef, and(Left, _), _], Validated).
-validate_step(_, _, [_, Right, andel2(LineRef)], Validated) :-
-    member([LineRef, and(_, Right), _], Validated).
+% Double negation elimination: negnegel(X)
+validate_rule(_Premises, [_LineNumber, Result, negnegel(X)], Validated) :-
+    member([X, neg(neg(Result)), _], Validated).
 
-% Validate "implication introduction" (→ introduction)
-validate_step(_, _, [_, imp(Antecedent, Consequent), impint(Start, End)], Validated) :-
-    member(Box, Validated),
-    member([Start, Antecedent, assumption], Box),
-    member([End, Consequent, _], Box).
+% Implication elimination: impel(X, Y)
+validate_rule(_Premises, [_LineNumber, Result, impel(X, Y)], Validated) :-
+    member([X, Antecedent, _], Validated),
+    member([Y, imp(Antecedent, Result), _], Validated).
 
-% Validate "implication elimination" (→ elimination)
-validate_step(_, _, [_, Consequent, impel(Line1, Line2)], Validated) :-
-    member([Line1, Antecedent, _], Validated),
-    member([Line2, imp(Antecedent, Consequent), _], Validated).
+% Copy: copy(X)
+validate_rule(_Premises, [_LineNumber, Result, copy(X)], Validated) :-
+    member([X, Result, _], Validated).
+	
 
-% Validate an assumption (starts a new box)
-validate_step(Premises, Goal, [[_, _, assumption] | BoxTail], Validated) :-
-    validate_proof(Premises, Goal, BoxTail, [[_, _, assumption] | Validated]).
+% Conjunction introduction: andint(X, Y)
+validate_rule(_Premises, [_LineNumber, and(Left, Right), andint(X, Y)], Validated) :-
+    member([X, Left, _], Validated),
+    member([Y, Right, _], Validated).
 
-% Validate "or introduction" (∨ introduction, left and right)
-validate_step(_, _, [_, or(Left, _), orint1(LineRef)], Validated) :-
-    member([LineRef, Left, _], Validated).
-validate_step(_, _, [_, or(_, Right), orint2(LineRef)], Validated) :-
-    member([LineRef, Right, _], Validated).
+% Conjunction elimination 1: andel1(X)
+validate_rule(_Premises, [_LineNumber, Result, andel1(X)], Validated) :-
+    member([X, and(Result, _), _], Validated).
 
-% Validate "copy"
-validate_step(_, _, [_, Formula, copy(LineRef)], Validated) :-
-    member([LineRef, Formula, _], Validated).
+% Conjunction elimination 2: andel2(X)
+validate_rule(_Premises, [_LineNumber, Result, andel2(X)], Validated) :-
+    member([X, and(_, Result), _], Validated).
 
-% Validate "contradiction elimination" (⊥ elimination)
-validate_step(_, _, [_, _, contel(LineRef)], Validated) :-
-    member([LineRef, cont, _], Validated).
+% Contradiction elimination: contel(X)
+validate_rule(_Premises, [_LineNumber, _Result, contel(X)], Validated) :-
+    member([X, cont, _], Validated).
 
-% Validate "negation introduction" (¬ introduction)
-validate_step(_, _, [_, neg(Formula), negint(Start, End)], Validated) :-
-    member(Box, Validated),
-    member([Start, Formula, assumption], Box),
-    member([End, cont, _], Box).
+% Double negation introduction: negnegint(X)
+validate_rule(_Premises, [_LineNumber, neg(neg(Result)), negnegint(X)], Validated) :-
+    member([X, Result, _], Validated).
 
-% Validate "negation elimination" (¬ elimination)
-validate_step(_, _, [_, cont, negel(Line1, Line2)], Validated) :-
-    member([Line1, Formula, _], Validated),
-    member([Line2, neg(Formula), _], Validated).
+% Disjunction introduction 1: orint1(X)
+validate_rule(_Premises, [_LineNumber, or(Result, _), orint1(X)], Validated) :-
+    member([X, Result, _], Validated).
 
-% Validate "double negation introduction" (¬¬ introduction)
-validate_step(_, _, [_, neg(neg(Formula)), negnegint(LineRef)], Validated) :-
-    member([LineRef, Formula, _], Validated).
+% Disjunction introduction 2: orint2(X)
+validate_rule(_Premises, [_LineNumber, or(_, Result), orint2(X)], Validated) :-
+    member([X, Result, _], Validated).
 
-% Validate "double negation elimination" (¬¬ elimination)
-validate_step(_, _, [_, Formula, negnegel(LineRef)], Validated) :-
-    member([LineRef, neg(neg(Formula)), _], Validated).
+% Law of excluded middle: lem
+validate_rule(_Premises, [_LineNumber, or(X, neg(X)), lem], _Validated).
 
-% Validate "modus tollens" (mt)
-validate_step(_, _, [_, neg(Antecedent), mt(Line1, Line2)], Validated) :-
-    member([Line1, imp(Antecedent, Consequent), _], Validated),
-    member([Line2, neg(Consequent), _], Validated).
+% Negation elimination: negel(X, Y)
+validate_rule(_Premises, [_LineNumber, cont, negel(X, Y)], Validated) :-
+    member([X, Proposition, _], Validated),
+    member([Y, neg(Proposition), _], Validated).
 
-% Validate "proof by contradiction" (pbc)
-validate_step(_, _, [_, Formula, pbc(Start, End)], Validated) :-
-    member(Box, Validated),
-    member([Start, neg(Formula), assumption], Box),
-    member([End, cont, _], Box).
+% Modus tollens: mt(X, Y)
+validate_rule(_Premises, [_LineNumber, neg(Result), mt(X, Y)], Validated) :-
+    member([X, imp(Result, Other), _], Validated),
+    member([Y, neg(Other), _], Validated).
 
-% Validate "law of excluded middle" (LEM)
-validate_step(_, _, [_, or(Formula, neg(Formula)), lem], _).
+% Negation introduction: negint(X, Y)
+validate_rule(_Premises, [_LineNumber, neg(Result), negint(X, Y)], Validated) :-
+    find_box(X, Validated, Box),
+    member([X, Result, assumption], Box),
+    member([Y, cont, _], Box).
+
+% Proof by contradiction: pbc(X, Y)
+validate_rule(_Premises, [_LineNumber, Result, pbc(X, Y)], Validated) :-
+    find_box(X, Validated, Box),
+    member([X, neg(Result), assumption], Box),
+    member([Y, cont, _], Box).
+
+% Implication introduction: impint(X, Y)
+validate_rule(Premises, [_LineNumber, imp(Antecedent, Result), impint(X, Y)], Validated) :-
+    % Ensure imp(Antecedent, Result) is not already a premise
+    \+ member(imp(Antecedent, Result), Premises),
+
+    % Find the box corresponding to the assumption of Antecedent
+    find_box(X, Validated, Box),
+
+    % Ensure the box starts with the antecedent as an assumption
+    member([X, Antecedent, assumption], Box),
+
+    % Ensure the consequent is derived logically in the box
+    member([Y, Result, _], Box),
+
+    % Ensure no redundant copies of the antecedent
+    \+ (member([_, Antecedent, copy(_)], Box), \+ member(Antecedent, Premises)).
+
+
+% Disjunction elimination: orel(X, Y, U, V, W)
+validate_rule(_Premises, [_LineNumber, Result, orel(X, Y, U, V, W)], Validated) :-
+    find_box(Y, Validated, FirstBox),
+    find_box(V, Validated, SecondBox),
+    member([X, or(Left, Right), _], Validated),
+    member([Y, Left, _], FirstBox),
+    member([U, Result, _], FirstBox),
+    member([V, Right, _], SecondBox),
+    member([W, Result, _], SecondBox).
+
+% Handling Boxes
+% A box is valid if all its lines are validated.
+validate_box(_Premises, _Goal, [], _Validated).
+
+% The first line of the box is another box.
+validate_box(Premises, Goal, [[[LineNumber, Result, assumption] | BoxTail] | ProofTail], Validated) :-
+    validate_box(Premises, Goal, BoxTail, [[LineNumber, Result, assumption] | Validated]),
+    validate_box(Premises, Goal, ProofTail, [[[LineNumber, Result, assumption] | BoxTail] | Validated]).
+
+% The first line is a result derived from a rule.
+validate_box(Premises, Goal, [ProofHead | ProofTail], Validated) :-
+    validate_rule(Premises, ProofHead, Validated),
+    validate_box(Premises, Goal, ProofTail, [ProofHead | Validated]).
+
+% Find a box containing a specific line.
+find_box(TargetLine, [BoxHead | _], BoxHead) :-
+    member([TargetLine, _, _], BoxHead).
+
+% If not found, search the rest of the validated list.
+find_box(TargetLine, [_ | Rest], Box) :-
+    find_box(TargetLine, Rest, Box).
